@@ -1,4 +1,5 @@
-from collections import UserDict
+import re
+from collections import UserDict, UserList
 from datetime import datetime, timedelta
 
 class Field:
@@ -27,6 +28,18 @@ class Birthday(Field):
         except ValueError:
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
 
+class Email(Field):
+    def __init__(self, value):
+        if not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", value):
+            raise ValueError("Invalid email format.")
+        super().__init__(value)
+
+class Address(Field):
+    def __init__(self, value):
+        if not re.search(r"\b\d{5}\b$", value.strip()):
+            raise ValueError("Invalid US address format. Must end with a 5-digit ZIP code.")
+        super().__init__(value)
+
 # Клас для зберігання інформації про контакт, включно з іменем та списком телефонів. 
 # Містить методі маніпуляцій з записами, в класі задане поле name та атрибут phones
 class Record:
@@ -34,9 +47,17 @@ class Record:
         self.name = Name(name)
         self.phones = []
         self.birthday = None
+        self.email = None
+        self.address = None
 
     def add_birthday(self, birthday_str):
         self.birthday = Birthday(birthday_str)
+
+    def add_email(self, email_str):
+        self.email = Email(email_str)
+
+    def add_address(self, address_str):
+        self.address = Address(address_str)
 
     # Метод який дозволяє додавати номер. phone_number передається як аргумент методу а
     # не доданий як поле класу щоб зберігати килька номерів в phones а не тільки один при ініціалізації обʼєкту Record
@@ -73,7 +94,17 @@ class Record:
         return None
 
     def __str__(self):
-        return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
+        res = f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
+        birthday = getattr(self, 'birthday', None)
+        if birthday:
+            res += f", birthday: {birthday.value.strftime('%d.%m.%Y')}"
+        email = getattr(self, 'email', None)
+        if email:
+            res += f", email: {email.value}"
+        address = getattr(self, 'address', None)
+        if address:
+            res += f", address: {address.value}"
+        return res
 
 class AddressBook(UserDict):
     def add_record(self, record):
@@ -85,6 +116,20 @@ class AddressBook(UserDict):
     def delete(self, name):
         if name in self.data:
             del self.data[name]
+
+    def search(self, query):
+        query = query.lower()
+        results = []
+        for record in self.data.values():
+            if query in record.name.value.lower():
+                results.append(record)
+                continue
+            
+            for phone in record.phones:
+                if query in phone.value:
+                    results.append(record)
+                    break
+        return results
 
     # HW07 Додаємо метод який для контактів адресної книги повертає список користувачів, 
     # яких потрібно привітати по днях на наступному тижні.
@@ -124,6 +169,19 @@ class AddressBook(UserDict):
                 upcoming.append({"name": record.name.value, "congratulation_date": congratulation_date.strftime("%d.%m.%Y")})
 
         return upcoming
+
+# Класи для нотаток
+class Note(Field):
+    pass
+
+class NotesManager(UserList):
+    def search(self, query):
+        query = query.lower()
+        results = []
+        for i, note in enumerate(self.data):
+            if query in str(note.value).lower():
+                results.append((i, note))
+        return results
 
 #Приклад
 if __name__ == "__main__":
@@ -178,3 +236,13 @@ if __name__ == "__main__":
 
     # Перевірка списку найближчих днів народження (birthdays)
     print("Upcoming birthdays:", book.get_upcoming_birthdays())
+
+    # Перевірка функції пошуку (search)
+    print("\n--- Search Results ---")
+    print("Search query '555':")
+    for record in book.search("555"):
+        print(record)
+
+    print("Search query 'ali':")
+    for record in book.search("ali"):
+        print(record)
