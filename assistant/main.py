@@ -12,6 +12,32 @@ from colorama import Fore
 from prompt_toolkit import prompt, HTML
 from prompt_toolkit.completion import NestedCompleter
 
+def get_completer_dict(book, attr_name=None):
+    
+    #Допоміжна функція для побудови багаторівневого словника автозавершення щоб не копіювати декілька
+    # разів один і той же код з різними атрибутами.
+    #Якщо attr_name=None, повертає просто {ім'я: None}.
+    #Якщо attr_name передано, підтягує відповідні дані (список або єдиний об'єкт).
+    
+    result = {}
+    for name, record in book.data.items():
+        if attr_name is None:
+            result[name] = None
+        else:
+            attr = getattr(record, attr_name, None)
+            # Якщо це список (наприклад, phones)
+            if isinstance(attr, list):
+                if attr:
+                    result[name] = {item.value: None for item in attr}
+                else:
+                    result[name] = None
+            # Якщо це єдиний об'єкт (наприклад, email або address)
+            elif attr is not None:
+                result[name] = {attr.value: None}
+            else:
+                result[name] = None
+    return result
+
 def main():
     colorama.init(autoreset=True)
     # Завантажуємо адресну книгу та нотатки перед початком
@@ -20,18 +46,20 @@ def main():
     print(Fore.CYAN + "Welcome to the assistant bot!")
     
     while True:
-        # Створюємо словник для підказок, де ключі — це імена існуючих контактів.
-        # Значення None вказує на те, що після імені автозавершення не потрібне.
-        contacts_dict = {name: None for name in book.data.keys()}
+        # Використовуємо get_completer_dict і передаємо відповідні атрибути:
+        contacts_dict = get_completer_dict(book)             # Базовий словник імен
+        change_dict = get_completer_dict(book, 'phones')     # Імена + телефони
+        email_dict = get_completer_dict(book, 'email')       # Імена + email
+        address_dict = get_completer_dict(book, 'address')   # Імена + адреси
 
         # Створюємо словник для NestedCompleter, який містить усі можливі команди.
         # Команди, які працюють з конкретними контактами, отримують contacts_dict для підказок.
         completer_dictionary = {
             "add": contacts_dict,
-            "change": contacts_dict,
+            "change": change_dict,
             "phone": contacts_dict,
-            "add-email": contacts_dict,
-            "add-address": contacts_dict,
+            "add-email": email_dict,
+            "add-address": address_dict,
             "add-birthday": contacts_dict,
             "show-birthday": contacts_dict,
             "delete": contacts_dict,
