@@ -1,6 +1,8 @@
 from collections import UserDict
 from copyreg import pickle
 from datetime import datetime, timedelta
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import NestedCompleter, WordCompleter
 import pickle
 import re
 
@@ -132,21 +134,7 @@ class Record:
 
 
 class AddressBook(UserDict):
-    # HW08! Додані методи для збереження та завантаження даних безпосередньо в класі AddressBook, щоб не залежати від зовнішнього модуля storage.py
-    def save_data(self, filename="goit-pycore-hw-08/addressbook.pkl"):
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-    # HW08! Метод для завантаження даних, який повертає об'єкт AddressBook або створює новий, якщо файл не знайдено
-    
-    def load_data(self, filename="goit-pycore-hw-08/addressbook.pkl"):
-        try:
-            with open(filename, "rb") as f:
-                restored_book = pickle.load(f)
-                self.data = restored_book.data  # Копіюємо дані в поточний екземпляр
-        except (FileNotFoundError, EOFError):
-            self.data = {}  # Залишаємо книгу порожньою
-    
-    # Додані методи для роботи з контактами (додавання, пошук, видалення)
+
     def add_record(self, record):
         self.data[record.name.value] = record
 
@@ -162,15 +150,14 @@ class AddressBook(UserDict):
     def add_email_to_record(self, name, email):
         record = self.find(name)
         if not record:
-            return f"Контакт з ім'ям {name} не знайдено."
+            return f"Contact {name} not found."
         
-        # Перевіряємо, чи є взагалі у об'єкта Record список emails
-        if not hasattr(record, 'emails'):
+        if not hasattr(record, 'emails') or record.emails is None:
             record.emails = []
             
         record.add_email(email)
-        self.save_data()  # Зберігаємо зміни у файл
-        return f"Email '{email}' успішно додано для контакту {name}."
+        save_data(self)  # HW08! (правки) Збереження даних після додавання email
+        return f"Email '{email}' successfully added to {name}."
     # Універсальний пошук по імені, телефону та email
 
     def search(self, query):
@@ -190,14 +177,15 @@ class AddressBook(UserDict):
                 continue
                 
             # Перевіряємо email на відповідність запиту (ігноруємо регістр) та підтримуємо частковий пошук
-            email_match = any(query in email.value.lower() for email in record.emails)
+            emails = getattr(record, 'emails', []) or []
+            email_match = any(query in email.value.lower() for email in emails)
             if email_match:
                 results.append(record)
                 continue
                 
         return results
 
-    # HW07! Додавання методу для отримання списку контактів, у яких день народження припадає на найближчі 7 днів:
+    # Додавання методу для отримання списку контактів, у яких день народження припадає на найближчі 7 днів:
     def get_upcoming_birthdays(self):
         today = datetime.today().date()
         upcoming = []
@@ -225,20 +213,33 @@ class AddressBook(UserDict):
                 
                 upcoming.append({
                     "name": record.name.value,
-                    "congratulation_date": congrat_date.strftime("%d.%m.%Y")
+                    "congratulation_date": congrat_date.strftime("%d.%m.%Y"),
+                    "birthday_date": record.birthday.value.strftime("%d.%m.%Y")
                 })
                 
         return upcoming
 
 
-# HW07! Додані функції-обробники команд користувача:
+# HW08! Виправлено! Додані функції для збереження та завантаження даних з файлу за допомогою модуля pickle (замість методів класу AddressBook):
+def save_data(book, filename="homeworkYDP7/addressbook.pkl"):
+        with open(filename, "wb") as f:
+            pickle.dump(book, f)
+   
+
+def load_data(filename="homeworkYDP7/addressbook.pkl"):
+    try:
+        with open(filename, "rb") as f:
+            return pickle.load(f)
+    except FileNotFoundError:
+        return AddressBook()
+
+
 def parse_input(user_input):
     if not user_input.strip():
         return "", []
     cmd, *args = user_input.split()
     cmd = cmd.strip().lower()
     return cmd, args
-
 
 @input_error
 def add_contact(args, book):
@@ -269,6 +270,17 @@ def change_contact(args, book):
 
 
 @input_error
+def delete_contact(args, book):
+    if len(args) < 1:
+        raise IndexError
+    name = args[0]
+    if book.delete(name):
+        return "Contact deleted successfully."
+    else:
+        raise KeyError
+
+
+@input_error
 def show_phone(args, book):
     if len(args) < 1:
         raise IndexError
@@ -277,12 +289,6 @@ def show_phone(args, book):
     if record is None:
         raise KeyError
     return f"{name}'s phones: {', '.join(p.value for p in record.phones)}"
-
-
-def show_all(book):
-    if not book.data:
-        return "Address book is empty."
-    return "\n".join(str(record) for record in book.data.values())
 
 
 @input_error
@@ -318,7 +324,7 @@ def birthdays(args, book):
     
     result = ["Upcoming birthdays:"]
     for item in upcoming:
-        result.append(f"{item['name']}: congratulation date {item['congratulation_date']}")
+        result.append(f"{item['name']}: birthday was {item['birthday_date']}, congratulation date {item['congratulation_date']}")
     return "\n".join(result)
 
 @input_error
@@ -326,32 +332,128 @@ def add_email(args, book):
     if len(args) < 2:
         return "Будь ласка, вкажіть ім'я та email."
     name, email = args[0], args[1]
-    # Викликаємо створений метод з класу AddressBook
     return book.add_email_to_record(name, email)
 
-# HW07! Головна функція для запуску бота та обробки команд користувача:
+@input_error
+def search_info(args, book):
+    if len(args) < 1:
+        raise IndexError
+    query = args[0]
+    results = book.search(query)
+    if not results:
+        return "No contacts found matching the query."
+    return "\n".join(str(record) for record in results)
+
+def show_all(book):
+    if not book.data:
+        return "Address book is empty."
+    return "\n".join(str(record) for record in book.data.values())
+
+def show_help():
+    help_text = """
+Available commands:
+  help                                         - Show this help message
+  hello                                        - Greet the bot
+  all                                          - Show all contacts
+  add [name] [phone]                           - Add a new contact
+  change [name] [old_phone] [new_phone]        - Change contact's phone number
+  phone [name]                                 - Show phone number for a contact
+  add-email [name] [email]                     - Add email to a contact
+  add-birthday [name] [date]                   - Add birthday (DD.MM.YYYY) to a contact
+  show-birthday [name]                         - Show birthday for a contact
+  birthdays                                    - Show upcoming birthdays for the next week
+  search [info]                                - Search contacts by name or phone
+  close / exit                                 - Save data and exit the bot
+"""
+    print(help_text)
+
+
+# Головна функція для запуску бота та обробки команд користувача:
 def main():
-    book = AddressBook()
-    book.load_data()  # HW08! Завантаження даних при запуску бота
+    book = load_data()
     print("Welcome to the assistant bot!")
     
+    need_update_completer = True
+    command_completer = None
+
     while True:
-        user_input = input("Enter a command: ")
+        # 1. Створюємо словник для підказок, де ключі — це імена контактів, а значення — None (підказки для аргументів не потрібні)
+        #contacts_dict = {name: None for name in book.keys()}
+        if need_update_completer:
+            phone_hint = {"<phone>": None}
+            email_hint = {"<email>": None}
+            birthday_hint = {"<DD.MM.YYYY>": None}
+            note_hint = {"<text>": None} # Підказка для заметок (якщо буде реалізовано)
+
+            contacts_with_existing_phones = {}
+            for name, record in book.items():
+                # Перевіряємо, чи є у контакту телефони, і якщо так, то додаємо їх до словника підказок для команди "change"
+                if hasattr(record, 'phones') and record.phones:
+                    # Вилучаємо номери телефонів і створюємо словник для підказок, де ключі — це номери телефонів, а значення — None (підказки для аргументів не потрібні)
+                    existing_phones = {phone.value: None for phone in record.phones}
+                    contacts_with_existing_phones[name] = existing_phones
+                else:
+                    # Якщо номеров поки немає, показujemy стандартну заглушку
+                    contacts_with_existing_phones[name] = phone_hint 
+
+
+            contacts_with_phone = {name: phone_hint for name in book.keys()}
+            contacts_with_email = {name: email_hint for name in book.keys()}
+            contacts_with_birthday = {name: birthday_hint for name in book.keys()}
+            contacts_with_note = {name: note_hint for name in book.keys()} # Для нотаток (якщо буде реалізовано)
+            contacts_no_hints = {name: None for name in book.keys()}
+
+
+        # Створюємо словник для NestedCompleter, де ключі — це команди, а значення — словник з іменами контактів для відповідних команд.
+            completer_dictionary = {
+                "add-phone": contacts_with_phone,          # Підскаже імена контактів для команди add-phone (хоча для додавання нового контакту це не обов'язково, але може допомогти при оновленні існуючого)
+                "change": contacts_with_existing_phones,       # Підскаже імена існуючих контактів
+                "phone": contacts_with_phone,        # Підскаже, чий номер телефона шукати
+                "add-email": contacts_with_email,    # Підскаже ім'я для додавання email
+                "add-birthday": contacts_with_birthday, # Підскаже ім'я для додавання дня народження
+                "show-birthday": contacts_with_birthday,# Підскаже ім'я для виведення дня народження
+                "delete": contacts_no_hints,       # Підскаже імена контактів для видалення
+                "search": None,                # Вільний текстовий пошук (підказки приховані)
+                "all": None,                   # Аргументи не потрібні
+                "birthdays": None,
+                "hello": None,
+                "help": None,
+                "exit": None,
+                "close": None
+        }
+
+        command_completer = NestedCompleter.from_nested_dict(completer_dictionary)
+        need_update_completer = False  # Після першого створення комплетера, встановлюємо прапорець в False, щоб не оновлювати його на кожній ітерації
+
+        try:
+            # Використовуємо prompt з нашим NestedCompleter для вводу команд користувача з автодоповненням
+            user_input = prompt("Enter a command: ", completer=command_completer)
+        except (KeyboardInterrupt, EOFError):  # Захист від Ctrl+C або Ctrl+D
+            save_data(book)
+            print("\nGood bye!") 
+            break
+
         if not user_input.strip():
             continue
-            
+      
+      
         command, *args = parse_input(user_input)
 
         if command in ["close", "exit"]:
-            book.save_data() # HW08! Збереження даних перед виходом
+            save_data(book) # HW08! (правки) Збереження даних перед виходом
             print("Good bye!")
             break
         elif command == "hello":
             print("How can I help you?")
-        elif command == "add":
+        elif command == "add-phone":
             print(add_contact(*args, book))
+            need_update_completer = True # Після додавання нового контакту або оновлення існуючого, встановлюємо прапорець в True, щоб оновити комплетер з новими іменами контактів та їх телефонами
         elif command == "change":
             print(change_contact(*args, book))
+            need_update_completer = True
+        elif command == "delete":
+            print(delete_contact(*args, book))
+            need_update_completer = True
         elif command == "phone":
             print(show_phone(*args, book))
         elif command == "all":
@@ -362,10 +464,14 @@ def main():
             print(add_birthday(*args, book))
         elif command == "show-birthday":
             print(show_birthday(*args, book))
+        elif command == "search":
+            print(search_info(*args, book))
         elif command == "birthdays":
             print(birthdays(*args, book))
+        elif command == "help":
+            print(show_help())
         else:
-            print("Invalid command. Enter the argument for the command: add, change, phone, all, add-birthday, add-email, show-birthday, birthdays, exit, close, hello")
+            print("Invalid command. Enter the argument for the command: add-phone, change, delete, phone, all, add-birthday, add-email, search, show-birthday, birthdays, exit, close, hello")
    
 if __name__ == "__main__":
     main()
