@@ -85,12 +85,16 @@ def show_all(book: AddressBook):
     table = []
     for record in book.data.values():
         phones = "; ".join(p.value for p in record.phones)
+        
         birthday = getattr(record, 'birthday', None)
         birthday_str = birthday.value.strftime('%d.%m.%Y') if birthday else ""
+        
         email = getattr(record, 'email', None)
         email_str = email.value if email else ""
+
         address = getattr(record, 'address', None)
         address_str = address.value if address else ""
+        
         table.append([record.name.value, phones, birthday_str, email_str, address_str])
         
     return tabulate(table, headers=["Name", "Phones", "Birthday", "Email", "Address"], tablefmt="grid")
@@ -206,12 +210,16 @@ def search_contacts(args, book: AddressBook):
     table = []
     for record in results:
         phones = "; ".join(p.value for p in record.phones)
+        
         birthday = getattr(record, 'birthday', None)
         birthday_str = birthday.value.strftime('%d.%m.%Y') if birthday else ""
+        
         email = getattr(record, 'email', None)
         email_str = email.value if email else ""
+
         address = getattr(record, 'address', None)
         address_str = address.value if address else ""
+
         table.append([record.name.value, phones, birthday_str, email_str, address_str])
         
     return tabulate(table, headers=["Name", "Phones", "Birthday", "Email", "Address"], tablefmt="grid")
@@ -283,3 +291,28 @@ def show_all_notes(notes: NotesManager):
         table.append([i + 1, note.value])
         
     return tabulate(table, headers=["ID", "Note Text"], tablefmt="grid")
+
+# Виводить таблицю з усіма доступними командами
+def show_help():
+    help_data = [
+        ["hello", "Prints a greeting message."],
+        ["help", "Shows all available commands."],
+        ["close / exit", "Saves data and closes the application."],
+        ["add <name> <phone>", "Adds a new contact or adds a phone."],
+        ["change <name> <old_phone> <new_phone>", "Changes a phone number."],
+        ["phone <name>", "Shows phone numbers for a contact."],
+        ["add-email <name> <email>", "Adds an email to a contact."],
+        ["add-address <name> <address>", "Adds an address to a contact."],
+        ["all", "Displays all contacts."],
+        ["delete <name>", "Deletes a contact."],
+        ["search <query>", "Searches contacts by name or phone."],
+        ["add-birthday <name> <DD.MM.YYYY>", "Adds a birthday to a contact."],
+        ["show-birthday <name>", "Shows a contact's birthday."],
+        ["birthdays", "Shows upcoming birthdays in the next 7 days."],
+        ["add-note <text>", "Adds a new note."],
+        ["change-note <id> <text>", "Updates an existing note."],
+        ["delete-note <id>", "Deletes a note."],
+        ["search-note <query>", "Searches notes."],
+        ["notes", "Displays all notes."]
+    ]
+    return tabulate(help_data, headers=["Command & Arguments", "Description"], tablefmt="grid")

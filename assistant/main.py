@@ -3,12 +3,14 @@ from handlers import (
     add_contact, change_contact, show_phone, show_all,
     add_birthday, show_birthday, birthdays, delete_contact,
     search_contacts, add_email, add_address,
-    add_note, change_note, delete_note, search_notes, show_all_notes
+    add_note, change_note, delete_note, search_notes, show_all_notes, show_help
 )
 from models import AddressBook, NotesManager
 from storage import save_data, load_data, save_notes, load_notes
 import colorama
 from colorama import Fore
+from prompt_toolkit import prompt, HTML
+from prompt_toolkit.completion import NestedCompleter
 
 def main():
     colorama.init(autoreset=True)
@@ -18,8 +20,47 @@ def main():
     print(Fore.CYAN + "Welcome to the assistant bot!")
     
     while True:
-        user_input = input(Fore.YELLOW + "Enter a command: " + Fore.RESET).strip()
+        # Створюємо словник для підказок, де ключі — це імена існуючих контактів.
+        # Значення None вказує на те, що після імені автозавершення не потрібне.
+        contacts_dict = {name: None for name in book.data.keys()}
+
+        # Створюємо словник для NestedCompleter, який містить усі можливі команди.
+        # Команди, які працюють з конкретними контактами, отримують contacts_dict для підказок.
+        completer_dictionary = {
+            "add": contacts_dict,
+            "change": contacts_dict,
+            "phone": contacts_dict,
+            "add-email": contacts_dict,
+            "add-address": contacts_dict,
+            "add-birthday": contacts_dict,
+            "show-birthday": contacts_dict,
+            "delete": contacts_dict,
+            "search": None,
+            "all": None,
+            "birthdays": None,
+            "add-note": None,
+            "change-note": None,
+            "delete-note": None,
+            "search-note": None,
+            "notes": None,
+            "hello": None,
+            "exit": None,
+            "close": None,
+            "help": None
+        }
+        # Ініціалізуємо об'єкт автозавершення
+        command_completer = NestedCompleter.from_nested_dict(completer_dictionary)
         
+        try:
+            # Використовуємо prompt() замість звичайного input() для підтримки автозавершення клавішею Tab
+            user_input = prompt(HTML("<ansiyellow>Enter a command: </ansiyellow>"), completer=command_completer).strip()
+        except (KeyboardInterrupt, EOFError):
+            # Захист від Ctrl+C або Ctrl+D — гарантує, що дані збережуться при примусовому закритті програми
+            save_data(book)
+            save_notes(notes)
+            print(Fore.CYAN + "\nGood bye!")
+            break
+
         # Захист від порожнього вводу (наприклад, якщо користувач просто натиснув Enter)
         if not user_input:
             continue
@@ -66,6 +107,8 @@ def main():
             print(search_notes(args, notes))
         elif command == "notes":
             print(show_all_notes(notes))
+        elif command == "help":
+            print(show_help())
         else:
             print(Fore.RED + "Invalid command.")
 

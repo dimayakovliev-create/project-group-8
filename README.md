@@ -13,27 +13,51 @@ It is recommended to use a virtual environment.
    ```
 
 2. **Create and activate a virtual environment (optional but recommended)**:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+   - On **macOS/Linux**:
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     ```
+   - On **Windows (Command Prompt)**:
+     ```cmd
+     python -m venv venv
+     venv\Scripts\activate.bat
+     ```
+   - On **Windows (PowerShell)**:
+     ```powershell
+     python -m venv venv
+     .\venv\Scripts\Activate.ps1
+     ```
 
 3. **Install required dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-   *(This installs `tabulate` for table rendering and `colorama` for the colored console output).*
+   *(This installs `tabulate` for table rendering, `colorama` for the colored console output, and `prompt_toolkit` for smart auto-completion).*
 
 4. **Run the application**:
-   ```bash
-   cd assistant
-   python3 main.py
-   ```
+   - On **macOS/Linux**:
+     ```bash
+     cd assistant
+     python3 main.py
+     ```
+   - On **Windows**:
+     ```cmd
+     cd assistant
+     python main.py
+     ```
 
-## Available Commands
+## 🌟 Smart Auto-Completion
+
+The application features an interactive and smart command-line prompt powered by `prompt_toolkit`:
+- **Command Auto-Completion**: Press `Tab` at any time to see a list of available commands or to auto-complete the command you are typing.
+- **Dynamic Name Suggestions**: For commands that require a contact's name (e.g., `change`, `phone`, `add-birthday`, `delete`), pressing `Tab` will instantly suggest names that are currently saved in your address book!
+
+## 📚 Available Commands
 
 ### General
 - `hello`: Prints a greeting message.
+- `help`: Shows a formatted table with all available commands and their descriptions.
 - `close` / `exit`: Saves all data and gracefully stops the bot.
 
 ### Contacts Management
@@ -95,5 +119,72 @@ Enter a command: change-note 1 Buy only milk
 Note updated.
 ```
 
-## Data Persistence
+## 🎭 Demo Scenario
+
+To quickly test the capabilities of the application during a presentation or review, you can populate the bot with pre-configured demo data.
+
+### 0. Generate Demo Data
+Run the standalone data generator script. This will cleanly overwrite your current `addressbook.pkl` and `notes.pkl` with a set of test contacts and notes:
+```bash
+cd assistant
+python demo_data.py
+```
+Now, launch the bot (`python main.py`) and try out the following flow:
+
+### 1. View Initial Data
+Start by viewing the pre-loaded data:
+```text
+Enter a command: all
+Enter a command: notes
+```
+*Notice how John has a complete profile, while other contacts have missing fields.*
+
+### 2. Birthdays
+You can check a specific person's birthday, or see who has upcoming birthdays within the next 7 days. `John` is hardcoded to have a birthday soon:
+```text
+Enter a command: show-birthday John
+Enter a command: birthdays
+```
+
+### 3. Adding & Updating Contacts
+Let's add a brand new contact with multiple phone numbers, and then change one of them:
+```text
+Enter a command: add Mike 1111111111
+Enter a command: add Mike 2222222222
+Enter a command: change Mike 1111111111 3333333333
+Enter a command: phone Mike
+```
+
+### 4. Add Email & Addresses
+Let's add an email address to Mike, and then give him a physical address. If you make a mistake, just call the command again to overwrite the old one!
+```text
+Enter a command: add-email Mike mike.personal@gmail.com
+Enter a command: add-address Mike 123 Old St, NY 10001
+Enter a command: add-address Mike 456 New Ave, NY 10002
+Enter a command: search mike
+```
+
+### 5. Deleting Contacts
+The demo data includes a contact named `Dummy`. Let's get rid of them:
+```text
+Enter a command: delete Dummy
+Enter a command: all
+```
+
+### 6. Working with Notes
+You can also manage text notes with full search capability. Let's add a new note, update it, and search for it:
+```text
+Enter a command: add-note Buy tickets to the cinema
+Enter a command: change-note 4 Buy tickets to the theatre
+Enter a command: search-note theatre
+Enter a command: delete-note 4
+```
+
+### 7. Smart Auto-Completion
+Start typing a command that requires a contact name and press `Tab` to see the suggestions based on the demo data!
+```text
+Enter a command: change <Press Tab>
+```
+
+## 💾 Data Persistence
 All your contacts and notes are automatically saved into `addressbook.pkl` and `notes.pkl` when you gracefully exit the bot using the `exit` or `close` commands. Next time you launch `main.py`, your data will be safely loaded back!
