@@ -16,7 +16,7 @@ def error_handler(func):
             return Fore.RED + "Error: Please provide a name."
         except KeyError:
             return Fore.RED + "Error: Contact not found."
-        
+                
     return errors
 
 #Додає новий контакт до адресної книги.
@@ -28,11 +28,11 @@ def add_contact(args, book: AddressBook):
     name, phone, *_ = args
     record = book.find(name)
     is_new = False
-
+ 
     if record is None:
         record = Record(name)
         is_new = True
-
+    
     if phone:
         # Спробуємо додати телефон. Якщо буде помилка валідації, вона перерве виконання
         # і запис не буде додано до книги.
@@ -43,6 +43,7 @@ def add_contact(args, book: AddressBook):
         return Fore.GREEN + "Contact added."
     else:
         return Fore.GREEN + "Contact updated."
+    
 
 #Змінює номер існуючого контакту.
 @error_handler
@@ -59,7 +60,7 @@ def change_contact(args, book: AddressBook):
     record.edit_phone(old_phone, new_phone)
 
     return Fore.GREEN + "Contact updated."
-
+   
 #Повертає номер телефону за ім'ям.
 @error_handler
 def show_phone(args, book: AddressBook):
@@ -74,7 +75,7 @@ def show_phone(args, book: AddressBook):
     
     if not record.phones:
         return Fore.YELLOW + "No phones found."
-    
+            
     return "\n".join(p.value for p in record.phones)
 
 #Повертає рядок з усіма збереженими контактами.
@@ -108,11 +109,7 @@ def add_email(args, book: AddressBook):
     name, email = args[0], args[1]
     return book.add_email_to_record(name, email)
 
-    # if record is None:
-    #     raise KeyError
-    # record.add_email(email)
-    # return Fore.GREEN + "Email added."
-
+   
 @error_handler
 def change_email(args, book: AddressBook):
     if len(args) < 3:
@@ -120,11 +117,7 @@ def change_email(args, book: AddressBook):
     name, old_email, new_email = args[0], args[1], args[2]
     return book.change_email_in_record(name, old_email, new_email)
 
-    # if record is None:
-    #     raise KeyError
-    # record.edit_email(old_email, new_email)
-    # return Fore.GREEN + "Email updated."
-
+  
 # Додає адресу до контакту
 @error_handler
 def add_address(args, book: AddressBook):
@@ -158,7 +151,7 @@ def add_birthday(args, book: AddressBook):
     record.add_birthday(birthday_str)
 
     return Fore.GREEN + "Birthday added."
-
+    
 # Показує дату народження контакту
 @error_handler
 def show_birthday(args, book: AddressBook):
@@ -172,7 +165,6 @@ def show_birthday(args, book: AddressBook):
         raise KeyError
     if record.birthday is None:
         return Fore.YELLOW + "No birthday found."
-    
     return record.birthday.value.strftime('%d.%m.%Y')
 
 # Показує дні народження на наступному тижні

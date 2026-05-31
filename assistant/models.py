@@ -1,5 +1,7 @@
 import re
 from collections import UserDict, UserList
+import re
+from collections import UserDict, UserList
 from datetime import datetime, timedelta
 from colorama import Fore
 
@@ -242,6 +244,19 @@ class NotesManager(UserList):
                 results.append((i, note))
         return results
 
+# Класи для нотаток
+class Note(Field):
+    pass
+
+class NotesManager(UserList):
+    def search(self, query):
+        query = query.lower()
+        results = []
+        for i, note in enumerate(self.data):
+            if query in str(note.value).lower():
+                results.append((i, note))
+        return results
+
 #Приклад
 if __name__ == "__main__":
     # Додамо запис з днем народження, який настане через 2 дні
@@ -295,6 +310,16 @@ if __name__ == "__main__":
 
     # Перевірка списку найближчих днів народження (birthdays)
     print("Upcoming birthdays:", book.get_upcoming_birthdays())
+
+    # Перевірка функції пошуку (search)
+    print("\n--- Search Results ---")
+    print("Search query '555':")
+    for record in book.search("555"):
+        print(record)
+
+    print("Search query 'ali':")
+    for record in book.search("ali"):
+        print(record)
 
     # Перевірка функції пошуку (search)
     print("\n--- Search Results ---")
