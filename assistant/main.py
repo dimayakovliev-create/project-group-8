@@ -118,8 +118,6 @@ def main():
             save_data(book)
             save_notes(notes)
             print(Fore.CYAN + "Good bye!")
-            save_notes(notes)
-            print(Fore.CYAN + "Good bye!")
             break
         elif command == "hello":
             print(Fore.CYAN + "How can I help you?")
@@ -180,7 +178,6 @@ def main():
             print(show_help())
         else:
             print(Fore.RED + "Invalid command.")
-            print(Fore.RED + "Invalid command.")
-
+   
 if __name__ == "__main__":
     main()
