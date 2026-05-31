@@ -1,4 +1,7 @@
-from models import AddressBook, Record
+import tabulate
+from models import AddressBook, Record, Note, NotesManager
+from tabulate import tabulate
+from colorama import Fore
 
 #Декоратор який перехоплює вийнятки та повертає відповідні повідомлення
 def error_handler(func):
@@ -7,12 +10,12 @@ def error_handler(func):
             return func(*args, **kwargs)
         except ValueError as e:
             if str(e) and "unpack" not in str(e):
-                return str(e)
-            return "Error: Please provide name and phone number."
+                return Fore.RED + str(e)
+            return Fore.RED + "Error: Please provide name and phone number."
         except IndexError:
-            return "Error: Please provide a name."
+            return Fore.RED + "Error: Please provide a name."
         except KeyError:
-            return "Error: Contact not found."
+            return Fore.RED + "Error: Contact not found."
         
     return errors
 
@@ -24,23 +27,28 @@ def add_contact(args, book: AddressBook):
     
     name, phone, *_ = args
     record = book.find(name)
-    message = "Contact updated."
+    is_new = False
 
     if record is None:
         record = Record(name)
-        book.add_record(record)
-        message = "Contact added."
+        is_new = True
 
     if phone:
+        # Спробуємо додати телефон. Якщо буде помилка валідації, вона перерве виконання
+        # і запис не буде додано до книги.
         record.add_phone(phone)
 
-    return message
+    if is_new:
+        book.add_record(record)
+        return Fore.GREEN + "Contact added."
+    else:
+        return Fore.GREEN + "Contact updated."
 
 #Змінює номер існуючого контакту.
 @error_handler
 def change_contact(args, book: AddressBook):
     if len(args) < 3:
-        raise ValueError("Error: Please provide name, old phone and new phone.")
+        raise ValueError(Fore.RED + "Error: Please provide name, old phone and new phone.")
     
     name, old_phone, new_phone, *_ = args
     record = book.find(name)
@@ -50,7 +58,7 @@ def change_contact(args, book: AddressBook):
     
     record.edit_phone(old_phone, new_phone)
 
-    return "Contact updated."
+    return Fore.GREEN + "Contact updated."
 
 #Повертає номер телефону за ім'ям.
 @error_handler
@@ -65,24 +73,81 @@ def show_phone(args, book: AddressBook):
         raise KeyError
     
     if not record.phones:
-        return "No phones found."
+        return Fore.YELLOW + "No phones found."
     
-    return "; ".join(p.value for p in record.phones)
+    return "\n".join(p.value for p in record.phones)
 
 #Повертає рядок з усіма збереженими контактами.
 @error_handler
 def show_all(book: AddressBook):
     if not book.data:
-        return "No contacts found."
+        return Fore.YELLOW + "No contacts found."
     
-    return "\n".join(str(record) for record in book.data.values())
+    table = []
+    for record in book.data.values():
+        phones = "\n".join(p.value for p in record.phones)
+        
+        birthday = getattr(record, 'birthday', None)
+        birthday_str = birthday.value.strftime('%d.%m.%Y') if birthday else ""
+        
+        emails = getattr(record, 'emails', [])
+        email_str = "\n".join(email.value for email in emails) if emails else ""
+
+        address = getattr(record, 'address', None)
+        address_str = address.value if address else ""
+        
+        table.append([record.name.value, phones, birthday_str, email_str, address_str])
+        
+    return tabulate(table, headers=["Name", "Phones", "Birthday", "Email", "Address"], tablefmt="grid")
+
+
+@error_handler
+def add_email(args, book: AddressBook):
+    if len(args) < 2:
+        return Fore.RED + "Error: Please provide name and email."
+    name, email = args[0], args[1]
+    return book.add_email_to_record(name, email)
+
+    # if record is None:
+    #     raise KeyError
+    # record.add_email(email)
+    # return Fore.GREEN + "Email added."
+
+@error_handler
+def change_email(args, book: AddressBook):
+    if len(args) < 3:
+        raise IndexError
+    name, old_email, new_email = args[0], args[1], args[2]
+    return book.change_email_in_record(name, old_email, new_email)
+
+    # if record is None:
+    #     raise KeyError
+    # record.edit_email(old_email, new_email)
+    # return Fore.GREEN + "Email updated."
+
+# Додає адресу до контакту
+@error_handler
+def add_address(args, book: AddressBook):
+    if len(args) < 2:
+        return Fore.RED + "Error: Please provide name and address."
+    
+    name = args[0]
+    address_str = " ".join(args[1:])
+    record = book.find(name)
+
+    if record is None:
+        raise KeyError
+    
+    record.add_address(address_str)
+
+    return Fore.GREEN + "Address added."
 
 #Зміни HW07
 # Додає дату народження до контакту
 @error_handler
 def add_birthday(args, book: AddressBook):
     if len(args) < 2:
-        raise ValueError("Error: Please provide name and birthday.")
+        raise ValueError(Fore.RED + "Error: Please provide name and birthday.")
     
     name, birthday_str, *_ = args
     record = book.find(name)
@@ -92,7 +157,7 @@ def add_birthday(args, book: AddressBook):
     
     record.add_birthday(birthday_str)
 
-    return "Birthday added."
+    return Fore.GREEN + "Birthday added."
 
 # Показує дату народження контакту
 @error_handler
@@ -106,7 +171,7 @@ def show_birthday(args, book: AddressBook):
     if record is None:
         raise KeyError
     if record.birthday is None:
-        return "No birthday found."
+        return Fore.YELLOW + "No birthday found."
     
     return record.birthday.value.strftime('%d.%m.%Y')
 
@@ -116,14 +181,13 @@ def birthdays(args, book: AddressBook):
     upcoming = book.get_upcoming_birthdays()
 
     if not upcoming:
-        return "No upcoming birthdays."
+        return Fore.YELLOW + "No upcoming birthdays."
     
-    result = []
-
+    table = []
     for item in upcoming:
-        result.append(f"{item['name']}: {item['congratulation_date']}")
+        table.append([item['name'], item['birthday_date'], item['congratulation_date']])
 
-    return "\n".join(result)
+    return tabulate(table, headers=["Name", "Birthday Date", "Congratulation Date"], tablefmt="grid")
 
 # Видаляє контакти
 @error_handler
@@ -139,4 +203,156 @@ def delete_contact(args, book: AddressBook):
         
     book.delete(name)
 
-    return "Contact deleted."
+    return Fore.GREEN + "Contact deleted."
+
+# Шукає контакти за частковим збігом імені або номера телефону
+@error_handler
+def search_contacts(args, book: AddressBook):
+    if not args:
+        raise ValueError("Error: Please provide a search query.")
+    
+    query = " ".join(args)
+    results = book.search(query)
+    
+    if not results:
+        return Fore.YELLOW + "No contacts found matching your query."
+    
+    table = []
+    for record in results:
+        phones = "\n".join(p.value for p in record.phones)
+        
+        birthday = getattr(record, 'birthday', None)
+        birthday_str = birthday.value.strftime('%d.%m.%Y') if birthday else ""
+        
+        emails = getattr(record, 'emails', [])
+        email_str = "\n".join(email.value for email in emails) if emails else ""
+
+        address = getattr(record, 'address', None)
+        address_str = address.value if address else ""
+
+        table.append([record.name.value, phones, birthday_str, email_str, address_str])
+        
+    return tabulate(table, headers=["Name", "Phones", "Birthday", "Email", "Address"], tablefmt="grid")
+
+# === ОБРОБНИКИ ДЛЯ НОТАТОК ===
+
+def note_error_handler(func):
+    def errors(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ValueError:
+            return Fore.RED + "Error: Invalid note number."
+        except IndexError:
+            return Fore.RED + "Error: Note not found (invalid index)."
+    return errors
+
+@note_error_handler
+def add_note(args, notes: NotesManager):
+    if not args:
+        return Fore.RED + "Error: Please provide note text."
+    text = " ".join(args)
+    note = Note(text)
+    notes.append(note)
+    return Fore.GREEN + "Note added."
+
+@note_error_handler
+def change_note(args, notes: NotesManager):
+    if len(args) < 2:
+        return Fore.RED + "Error: Please provide note number and new text."
+    index = int(args[0]) - 1
+    if index < 0 or index >= len(notes):
+        raise IndexError
+    new_text = " ".join(args[1:])
+    notes[index] = Note(new_text)
+    return Fore.GREEN + "Note updated."
+
+@note_error_handler
+def delete_note(args, notes: NotesManager):
+    if not args:
+        return Fore.RED + "Error: Please provide a note number."
+    input_string = "".join(args)
+    
+    raw_indices = input_string.split(",")
+    
+    indices_to_delete = []
+    for item in raw_indices:
+        cleaned_item = item.strip()
+        if not cleaned_item:
+            continue
+            
+        cleaned_item = cleaned_item.split()[0]
+        
+        try:
+            # Переводим в индекс Python (минус 1, так как пользователи вводят с 1)
+            idx = int(cleaned_item) - 1
+            if idx < 0 or idx >= len(notes):
+                return Fore.RED + f"Error: Note number {cleaned_item} is out of range."
+            indices_to_delete.append(idx)
+        except ValueError:
+            return Fore.RED + f"Error: '{cleaned_item}' is not a valid note number."
+
+    if not indices_to_delete:
+        return Fore.RED + "Error: No valid note numbers provided."
+
+    # 2. УДАЛЯЕМ ДУБЛИКАТЫ И СОРТИРУЕМ ПО УБЫВАНИЮ (reverse=True)
+    # Это критически важно, чтобы индексы не смещались при удалении!
+    indices_to_delete = sorted(list(set(indices_to_delete)), reverse=True)
+    
+    # 3. Последовательно удаляем заметки
+    for idx in indices_to_delete:
+        notes.pop(idx)
+        
+    return Fore.GREEN + f"Successfully deleted {len(indices_to_delete)} note(s)."
+
+@note_error_handler
+def search_notes(args, notes: NotesManager):
+    if not args:
+        return Fore.RED + "Error: Please provide a search query."
+    query = " ".join(args)
+    results = notes.search(query)
+    if not results:
+        return Fore.YELLOW + "No notes found matching your query."
+    
+    table = []
+    for i, note in results:
+        table.append([i + 1, note.value])
+        
+    return tabulate(table, headers=["ID", "Note Text"], tablefmt="grid")
+
+@note_error_handler
+def show_all_notes(notes: NotesManager):
+    if not notes.data:
+        return Fore.YELLOW + "No notes found."
+    
+    table = []
+    for i, note in enumerate(notes.data):
+        table.append([i + 1, note.value])
+        
+    return tabulate(table, headers=["ID", "Note Text"], tablefmt="grid")
+
+# Виводить таблицю з усіма доступними командами
+def show_help():
+    help_data = [
+        ["hello", "Prints a greeting message."],
+        ["help", "Shows all available commands."],
+        ["close / exit", "Saves data and closes the application."],
+        ["add-contact <name> <phone>", "Adds a new contact or adds a phone."],
+        ["create-demodata", "Populates the address book and notes with demo data."],
+        ["change-contact <name> <old_phone> <new_phone>", "Changes a phone number."],
+        ["show-phone <name>", "Shows phone numbers for a contact."],
+        ["add-email <name> <email>", "Adds an email to a contact."],
+        ["add-address <name> <address>", "Adds an address to a contact."],
+        ["all", "Displays all contacts."],
+        ["delete <name>", "Deletes a contact."],
+        ["delete-addressbook", "Deletes all contact data."],
+        ["search <query>", "Searches contacts by name or phone."],
+        ["add-birthday <name> <DD.MM.YYYY>", "Adds a birthday to a contact."],
+        ["show-birthday <name>", "Shows a contact's birthday."],
+        ["birthdays", "Shows upcoming birthdays in the next 7 days."],
+        ["add-note <text>", "Adds a new note."],
+        ["change-note <id> <text>", "Updates an existing note."],
+        ["delete-note <id>", "Deletes a note."],
+        ["search-note <query>", "Searches notes."],
+        ["show-notes", "Displays all notes."]
+    ]
+    return tabulate(help_data, headers=["Command & Arguments", "Description"], tablefmt="grid")

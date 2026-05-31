@@ -1,5 +1,7 @@
-from collections import UserDict
+import re
+from collections import UserDict, UserList
 from datetime import datetime, timedelta
+from colorama import Fore
 
 class Field:
     def __init__(self, value):
@@ -27,6 +29,18 @@ class Birthday(Field):
         except ValueError:
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
 
+class Email(Field):
+    def __init__(self, value):
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", value):
+            raise ValueError("Invalid email format.")
+        super().__init__(value)
+
+class Address(Field):
+    def __init__(self, value):
+        if not re.search(r"\b\d{5}\b$", value.strip()):
+            raise ValueError("Invalid US address format. Must end with a 5-digit ZIP code.")
+        super().__init__(value)
+
 # Клас для зберігання інформації про контакт, включно з іменем та списком телефонів. 
 # Містить методі маніпуляцій з записами, в класі задане поле name та атрибут phones
 class Record:
@@ -34,9 +48,32 @@ class Record:
         self.name = Name(name)
         self.phones = []
         self.birthday = None
+        self.emails = []
+        self.address = None
 
     def add_birthday(self, birthday_str):
         self.birthday = Birthday(birthday_str)
+
+    def add_address(self, address_str):
+        self.address = Address(address_str)
+
+    def add_email(self, email_address):
+        email = Email(email_address)
+        self.emails.append(email)
+
+    def remove_email(self, email_address):
+        for email in self.emails:
+            if email.value == email_address:
+                self.emails.remove(email)
+                return True
+        return False
+    
+    def edit_email(self, old_email, new_email):
+        for i, email in enumerate(self.emails):
+            if email.value == old_email:
+                self.emails[i] = Email(new_email)
+                return True
+        raise ValueError(f"Email {old_email} not found.")
 
     # Метод який дозволяє додавати номер. phone_number передається як аргумент методу а
     # не доданий як поле класу щоб зберігати килька номерів в phones а не тільки один при ініціалізації обʼєкту Record
@@ -73,7 +110,17 @@ class Record:
         return None
 
     def __str__(self):
-        return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
+        res = f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
+        birthday = getattr(self, 'birthday', None)
+        if birthday:
+            res += f", birthday: {birthday.value.strftime('%d.%m.%Y')}"
+        emails = getattr(self, 'emails', None)
+        if emails:
+            res += f", emails: {'; '.join(email.value for email in emails)}"
+        address = getattr(self, 'address', None)
+        if address:
+            res += f", address: {address.value}"
+        return res
 
 class AddressBook(UserDict):
     def add_record(self, record):
@@ -85,6 +132,60 @@ class AddressBook(UserDict):
     def delete(self, name):
         if name in self.data:
             del self.data[name]
+
+    def search(self, query):
+        query = query.lower()
+        results = []
+        
+        for record in self.data.values():
+            # Перевіряємо ім'я на відповідність запиту (ігноруємо регістр)
+            if query in record.name.value.lower():
+                results.append(record)
+                continue
+            
+            # Перевіряємо телефони  на відповідність запиту (ігноруємо регістр) та підтримуємо частковий пошук
+            phone_match = any(query in phone.value for phone in record.phones)
+            if phone_match:
+                results.append(record)
+                continue
+                
+            # Перевіряємо email на відповідність запиту (ігноруємо регістр) та підтримуємо частковий пошук
+            emails = getattr(record, 'emails', []) or []
+            email_match = any(query in email.value.lower() for email in emails)
+            if email_match:
+                results.append(record)
+                continue
+                
+        return results
+    
+
+    def add_email_to_record(self, name, email):
+        record = self.find(name)
+        if not record:
+            return f"{Fore.RED}Contact {name} not found.{Fore.RESET}"
+        
+        if not hasattr(record, 'emails') or record.emails is None:
+            record.emails = []
+            
+        record.add_email(email)
+        # save_data(self)  # HW08! (правки) Збереження даних після додавання email
+        return f"{Fore.GREEN}Email '{email}' successfully added to {name}.{Fore.RESET}"
+
+    def change_email_in_record(self, name, old_email, new_email):
+        record = self.find(name)
+        if not record:
+            return f"{Fore.RED}Contact {name} not found.{Fore.RESET}"
+        
+        if not hasattr(record, 'emails') or record.emails is None:
+            return f"{Fore.RED}No emails found for contact {name}.{Fore.RESET}"
+        
+        try:
+            record.edit_email(old_email, new_email)
+            # save_data(self)  # HW08! (правки) Збереження даних після зміни email
+            return f"{Fore.GREEN}Email '{old_email}' successfully changed to '{new_email}' for {name}.{Fore.RESET}"
+        except ValueError as e:
+            return str(e)
+
 
     # HW07 Додаємо метод який для контактів адресної книги повертає список користувачів, 
     # яких потрібно привітати по днях на наступному тижні.
@@ -121,9 +222,25 @@ class AddressBook(UserDict):
                 else:
                     congratulation_date = birthday_this_year
 
-                upcoming.append({"name": record.name.value, "congratulation_date": congratulation_date.strftime("%d.%m.%Y")})
-
+                upcoming.append({
+                    "name": record.name.value,
+                    "congratulation_date": congratulation_date.strftime("%d.%m.%Y"),
+                    "birthday_date": record.birthday.value.strftime("%d.%m.%Y")
+                    })
         return upcoming
+
+# Класи для нотаток
+class Note(Field):
+    pass
+
+class NotesManager(UserList):
+    def search(self, query):
+        query = query.lower()
+        results = []
+        for i, note in enumerate(self.data):
+            if query in str(note.value).lower():
+                results.append((i, note))
+        return results
 
 #Приклад
 if __name__ == "__main__":
@@ -178,3 +295,13 @@ if __name__ == "__main__":
 
     # Перевірка списку найближчих днів народження (birthdays)
     print("Upcoming birthdays:", book.get_upcoming_birthdays())
+
+    # Перевірка функції пошуку (search)
+    print("\n--- Search Results ---")
+    print("Search query '555':")
+    for record in book.search("555"):
+        print(record)
+
+    print("Search query 'ali':")
+    for record in book.search("ali"):
+        print(record)
